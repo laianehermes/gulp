@@ -1,11 +1,11 @@
 //#region requires
-var gulp                = require('gulp'),
+var projectName         = 'projeto',
+    gulp                = require('gulp'),
     imagemin            = require('gulp-imagemin'),
     clean               = require('gulp-clean'),
     concat              = require('gulp-concat'),
     htmlReplace         = require('gulp-html-replace'),
     uglify              = require('gulp-uglify'),
-    usemin              = require('gulp-usemin')
     cssmin              = require('gulp-cssmin'),
     browserSync         = require('browser-sync').create(),
     jshint              = require('gulp-jshint'),
@@ -13,22 +13,20 @@ var gulp                = require('gulp'),
     cssLint             = require('gulp-csslint'),
     autoprefixer        = require('gulp-autoprefixer'),
     less                = require('gulp-less'),
-    nameRandom          = require('gulp-rev'),
-    debug               = require('gulp-debug'),
     tap                 = require('gulp-tap');
 //#endregion
 
 gulp.task('default', ['copy'], function(){
-    gulp.start('build-img', 'build-css', 'build-js', 'build-html');
+    gulp.start(['build-img', 'clean-files']);
 });
 
 //#region duplica-pasta
 gulp.task('copy', ['clean'], function(){
-    return gulp.src(['projeto/**', 
-        '!projeto/app/{config,config/**}', 
-        '!projeto/app/{storage,storage/**}',
-        '!projeto/{nbproject,nbproject/**}',
-        '!projeto/{Scripts,Scripts/**}'
+    return gulp.src([projectName + '//**', 
+        '!' + projectName + '/app/{config,config/**}', 
+        '!' + projectName + '/app/{storage,storage/**}',
+        '!' + projectName + '/{nbproject,nbproject/**}',
+        '!' + projectName + '/{Scripts,Scripts/**}'
         ])
         .pipe(gulp.dest('version-client'));
 });
@@ -40,8 +38,10 @@ gulp.task('clean', function(){
 //#endregion
 
 //#region files
-var input  = 'projeto/public/',
-    output = 'version-client/public/';
+var input  = projectName + '/public/',
+    output = 'version-client/public/',
+    nameFileCss = '',
+    nameFileJs = '';
 
 var scriptsCss = [
     input + 'css/bootstrap.min.css',
@@ -80,40 +80,7 @@ gulp.task('build-img', function(){
         .pipe(gulp.dest('version-client/public/img'));    
 });
 
-gulp.task('build-css', function() {
-    return gulp.src(scriptsCss)
-        .pipe(concat('index.min.css'))
-        .pipe(cssmin())
-        .pipe(autoprefixer())
-        .pipe(nameRandom())
-        .pipe(gulp.dest(output + 'css'))
-        .pipe(nameRandom.manifest())
-        .pipe(gulp.dest(output + 'css'));
-});
-
-gulp.task('build-js', function() {
-    return gulp.src(scriptsJs)
-        .pipe(concat('index.min.js'))
-        .pipe(uglify())
-        .pipe(nameRandom())
-        .pipe(gulp.dest(output + 'js'))
-        .pipe(nameRandom.manifest())
-        .pipe(gulp.dest(output + 'js'));
-});
-
-gulp.task('build-html', ['clean-files'], function(){
-    return gulp.src('version-client/public/js/index-*.min.js')
-        .pipe(tap(function(file, t) {
-            var nameJs = file.relative;
-            gulp.src('version-client/app/views/shared/**/*.php')
-                .pipe(htmlReplace({
-                    js: '<script type="text/javascript" src="{{asset(\'js/' + nameJs + '\')}}"></script>'
-                }))
-                .pipe(gulp.dest('version-client/app/views/shared'));
-        }));
-});
-
-gulp.task('clean-files', function() {
+gulp.task('clean-files', ['build-html'], function() {
     return gulp.src([
         'version-client/public/js/**/*.js',
         'version-client/public/js/**/*.js.map',
@@ -124,6 +91,47 @@ gulp.task('clean-files', function() {
         ])
         .pipe(clean());
 });
+
+gulp.task('build-html', ['build-css', 'build-js'], function(){
+    return gulp.src(['version-client/public/css/index-*.min.css',
+                     'version-client/public/js/index-*.min.js'])
+        .pipe(tap(function(file, t) {
+            var extencao = new RegExp(/\.min\.css|\.min\.js/g).exec(file.relative)[0];
+            
+            if(extencao == '.min.css'){
+                nameFileCss = file.relative;
+            }else if(extencao == '.min.js'){
+                nameFileJs = file.relative;
+            }
+            
+            gulp.src('version-client/app/views/shared/**/*.blade.php')
+                .pipe(htmlReplace({
+                    css: '<link type="text/css" rel="stylesheet" href="{{asset(\'css/' + nameFileCss + '\')}}" />',
+                    js: '<script type="text/javascript" src="{{asset(\'js/' + nameFileJs + '\')}}"></script>'
+                }))
+                .pipe(gulp.dest('version-client/app/views/shared'));
+            
+        }));
+});
+
+gulp.task('build-css', function() {
+    var nameCss = 'index-' + textoAleatorio(10) + '.min.css';
+    
+    return gulp.src(scriptsCss)
+        .pipe(concat(nameCss))
+        .pipe(cssmin())
+        .pipe(autoprefixer())
+        .pipe(gulp.dest(output + 'css'));
+});
+
+gulp.task('build-js', function() {
+    var nameJs = 'index-' + textoAleatorio(10) + '.min.js';
+
+    return gulp.src(scriptsJs)
+        .pipe(concat(nameJs))
+        .pipe(uglify())
+        .pipe(gulp.dest(output + 'js'));
+});
 //#endregion
 
 gulp.task('server', function(){
@@ -133,25 +141,36 @@ gulp.task('server', function(){
         });
     });
 
-    gulp.watch('projeto/public/js/*.js').on('change', function(event){
+    gulp.watch(projectName + '/public/js/*.js').on('change', function(event){
         gulp.src(event.path)
             .pipe(jshint())
             .pipe(jshint.reporter(jshintStylish));
     });
 
-    gulp.watch('projeto/public/css/*.css').on('change', function(event){
+    gulp.watch(projectName + '/public/css/*.css').on('change', function(event){
         gulp.src(event.path)
             .pipe(cssLint())
             .pipe(cssLint.reporter());
     });
 
-    gulp.watch('projeto/public/less/**/*.less').on('change', function(event) {
+    gulp.watch(projectName + '/public/less/**/*.less').on('change', function(event) {
         var stream = gulp.src(event.path)
             .pipe(less().on('error', function(erro) {
             console.log('LESS, erro compilação: ' + erro.filename);
             console.log(erro.message);
             }))
-            .pipe(gulp.dest('projeto/public/css'));
+            .pipe(gulp.dest(projectName + '/public/css'));
     });
-    gulp.watch('projeto/**/*').on('change', browserSync.reload);
+    gulp.watch(projectName + '/**/*').on('change', browserSync.reload);
 });
+
+function textoAleatorio(tamanho)
+{
+    var letras = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz';
+    var aleatorio = '';
+    for (var i = 0; i < tamanho; i++) {
+        var rnum = Math.floor(Math.random() * letras.length);
+        aleatorio += letras.substring(rnum, rnum + 1);
+    }
+    return aleatorio;
+}
