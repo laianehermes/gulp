@@ -1,176 +1,142 @@
-//#region requires
-var projectName         = 'projeto',
-    gulp                = require('gulp'),
-    imagemin            = require('gulp-imagemin'),
-    clean               = require('gulp-clean'),
-    concat              = require('gulp-concat'),
-    htmlReplace         = require('gulp-html-replace'),
-    uglify              = require('gulp-uglify'),
-    cssmin              = require('gulp-cssmin'),
-    browserSync         = require('browser-sync').create(),
-    jshint              = require('gulp-jshint'),
-    jshintStylish       = require('jshint-stylish'),
-    cssLint             = require('gulp-csslint'),
-    autoprefixer        = require('gulp-autoprefixer'),
-    less                = require('gulp-less'),
-    tap                 = require('gulp-tap');
-//#endregion
+/*
+    Gulpfile para algumas ações clássicas de otimização.
+ */
 
-gulp.task('default', ['copy'], function(){
-    gulp.start(['build-img', 'clean-files']);
-});
+var gulp                = require('gulp'),
+    $                   = require('gulp-load-plugins')({rename: {'gulp-rev-delete-original':'revdel', 
+                                                                 'gulp-if': 'if', 
+                                                                 'gulp-html-replace': 'htmlReplace',
+                                                                 'gulp-inline-source': 'inlinesource'}});
 
-//#region duplica-pasta
-gulp.task('copy', ['clean'], function(){
-    return gulp.src([projectName + '//**', 
-        '!' + projectName + '/app/{config,config/**}', 
-        '!' + projectName + '/app/{storage,storage/**}',
-        '!' + projectName + '/{nbproject,nbproject/**}',
-        '!' + projectName + '/{Scripts,Scripts/**}'
-        ])
-        .pipe(gulp.dest('version-client'));
-});
-
-gulp.task('clean', function(){
-    return gulp.src('version-client')
-        .pipe(clean());
-});
-//#endregion
-
-//#region files
-var input  = projectName + '/public/',
-    output = 'version-client/public/',
+var projectName         = './',
+    projectNew          = './version-client',
+    input               = projectName + '/public/',
+    output              = projectNew + '/public/',
     nameFileCss = '',
-    nameFileJs = '';
+    nameFileJs = '',
+    scriptsCss = [
+        input + ''
+    ],
+    scriptsJs = [
+        input + ''
+    ];
 
-var scriptsCss = [
-    input + 'css/bootstrap.min.css',
-    input + 'css/bootstrap-datetimepicker.min.css',
-    input + 'css/bootstrap-theme.min.css',
-    input + 'css/style.css',
-    input + 'assets/font-awesome-4.7.0/css/font-awesome.min.css',
-    input + 'assets/jquery-ui-1.12.1/jquery-ui.css',
-    input + 'css/multiple-select.css'
-];
 
-var scriptsJs = [
-    input + 'js/jquery-3.2.1.js',
-    input + 'js/bootstrap.min.js',
-    input + 'js/moment.min.js',
-    input + 'assets/highcharts/highcharts.src.js',
-    input + 'js/knockout-3.4.2.min.js',
-    input + 'js/transition.js',
-    input + 'js/collapse.js',
-    input + 'js/bootstrap-datetimepicker.min.js',
-    input + 'js/knockout.validation.min.js',
-    input + 'assets/knockout.mapping/build/output/knockout.mapping-latest.js',
-    input + 'js/progressbar.min.js',
-    input + 'js/system/systemComponents.js',
-    input + 'assets/jquery-ui-1.12.1/jquery-ui.min.js',
-    input + 'assets/knockout-jqAutocomplete/build/knockout-jqAutocomplete.js',
-    input + 'assets/Knockout.LazyLoad-master/ko.lazyload.js',
-    input + 'js/multiple-select.js'
-];
-//#endregion
-
-//#region tasks
-gulp.task('build-img', function(){
-    return gulp.src('version-client/public/img/**/*')
-        .pipe(imagemin())
-        .pipe(gulp.dest('version-client/public/img'));    
+/* Tasks base */
+gulp.task('copy', ['clean'], function() {
+    return gulp.src([projectName + '//**', 
+            '!' + projectName + '/app/{config,config/**}', 
+            '!' + projectName + '/app/{storage,storage/**}',
+            '!' + projectName + '/{nbproject,nbproject/**}',
+            '!' + projectName + '/{node_modules,node_modules/**}',
+            '!' + projectName + '/{Scripts,Scripts/**}',
+            '!' + projectName + '/*',
+            ], {base: projectName})
+        .pipe(gulp.dest(projectNew));
 });
 
-gulp.task('clean-files', ['build-html'], function() {
-    return gulp.src([
-        'version-client/public/js/**/*.js',
-        'version-client/public/js/**/*.js.map',
-        '!version-client/public/js/**/index-*.min.js',
-        'version-client/public/css/**/*.css',
-        'version-client/public/css/**/*.css.map',
-        '!version-client/public/css/**/index-*.min.css',
-        ])
-        .pipe(clean());
+gulp.task('clean', function() {
+    return gulp.src(projectNew, {read: false})
+        .pipe($.clean({force: true}));
 });
 
-gulp.task('build-html', ['build-css', 'build-js'], function(){
-    return gulp.src(['version-client/public/css/index-*.min.css',
-                     'version-client/public/js/index-*.min.js'])
-        .pipe(tap(function(file, t) {
-            var extencao = new RegExp(/\.min\.css|\.min\.js/g).exec(file.relative)[0];
-            
-            if(extencao == '.min.css'){
-                nameFileCss = file.relative;
-            }else if(extencao == '.min.js'){
-                nameFileJs = file.relative;
-            }
-            
-            gulp.src('version-client/app/views/shared/**/*.blade.php')
-                .pipe(htmlReplace({
-                    css: '<link type="text/css" rel="stylesheet" href="{{asset(\'css/' + nameFileCss + '\')}}" />',
-                    js: '<script type="text/javascript" src="{{asset(\'js/' + nameFileJs + '\')}}"></script>'
-                }))
-                .pipe(gulp.dest('version-client/app/views/shared'));
-            
-        }));
+/* Imagens */
+gulp.task('imagemin', function() {
+    return gulp.src(projectName + '/public/img/**/*')
+        .pipe($.imagemin({
+            progressive: true,
+            svgoPlugins: [
+                {removeViewBox: false},
+                {cleanupIDs: false}
+            ]
+        }))
+        .pipe(gulp.dest(projectNew+'/public/img'));
 });
 
-gulp.task('build-css', function() {
-    var nameCss = 'index-' + textoAleatorio(10) + '.min.css';
-    
-    return gulp.src(scriptsCss)
-        .pipe(concat(nameCss))
-        .pipe(cssmin())
-        .pipe(autoprefixer())
-        .pipe(gulp.dest(output + 'css'));
-});
-
-gulp.task('build-js', function() {
-    var nameJs = 'index-' + textoAleatorio(10) + '.min.js';
-
+/* Minificação */
+gulp.task('minify-js', function() {
     return gulp.src(scriptsJs)
-        .pipe(concat(nameJs))
-        .pipe(uglify())
-        .pipe(gulp.dest(output + 'js'));
-});
-//#endregion
-
-gulp.task('server', function(){
-    gulp.task('server', function() {
-        browserSync.init({
-            proxy: 'localhost:8000'
-        });
-    });
-
-    gulp.watch(projectName + '/public/js/*.js').on('change', function(event){
-        gulp.src(event.path)
-            .pipe(jshint())
-            .pipe(jshint.reporter(jshintStylish));
-    });
-
-    gulp.watch(projectName + '/public/css/*.css').on('change', function(event){
-        gulp.src(event.path)
-            .pipe(cssLint())
-            .pipe(cssLint.reporter());
-    });
-
-    gulp.watch(projectName + '/public/less/**/*.less').on('change', function(event) {
-        var stream = gulp.src(event.path)
-            .pipe(less().on('error', function(erro) {
-            console.log('LESS, erro compilação: ' + erro.filename);
-            console.log(erro.message);
-            }))
-            .pipe(gulp.dest(projectName + '/public/css'));
-    });
-    gulp.watch(projectName + '/**/*').on('change', browserSync.reload);
+        .pipe($.uglify())
+        .pipe($.concat('index.min.js'))
+        .pipe($.rev())
+        .pipe(gulp.dest(output + 'js'))
 });
 
-function textoAleatorio(tamanho)
-{
-    var letras = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz';
-    var aleatorio = '';
-    for (var i = 0; i < tamanho; i++) {
-        var rnum = Math.floor(Math.random() * letras.length);
-        aleatorio += letras.substring(rnum, rnum + 1);
-    }
-    return aleatorio;
-}
+gulp.task('minify-css', function() {
+    return gulp.src(scriptsCss)
+        .pipe($.autoprefixer({browsers: ['last 30 versions']}))
+        .pipe($.cssnano({safe: true}))
+        .pipe($.concat('index.min.css'))
+        .pipe($.rev())
+        .pipe(gulp.dest(output + 'css'))
+});
+
+gulp.task('minify-html', function() {
+    return gulp.src(projectName +'/app/views/**/*.php')
+        .pipe($.htmlmin({collapseWhitespace: true}))
+        .pipe(gulp.dest(projectNew + '/app/views/'))
+});
+
+/* Concatenação */
+gulp.task('useref', ['defCSSref', 'defJSref'], function () { 
+    gulp.src(projectNew + '/app/views/shared/defaultAssetsCss.blade.php')
+        .pipe($.htmlReplace({ 
+            css: '<link type="text/css" rel="stylesheet" href="{{asset(\'css/' + nameFileCss + '\')}}" rel="preload" as="style" onload="this.rel=\'stylesheet\'" />' })) 
+        .pipe($.inlinesource({rootpath: './public/'}))
+        .pipe(gulp.dest(projectNew + '/app/views/shared/')) 
+
+    gulp.src(projectNew + '/app/views/shared/defaultAssetsJs.blade.php')
+        .pipe($.htmlReplace({ 
+            js: '<script async type="text/javascript" src="{{asset(\'js/' + nameFileJs + '\')}}"></script>' })) 
+        .pipe(gulp.dest(projectNew + '/app/views/shared/')) 
+});
+
+gulp.task('defCSSref', function () { 
+    return gulp.src([output + '/css/index*.min.css']) 
+        .pipe($.tap(function(file, t) { 
+            nameFileCss = file.relative; 
+        })); 
+});  
+        
+gulp.task('defJSref', function () { 
+    return gulp.src([output + '/js/index*.min.js']) 
+        .pipe($.tap(function(file, t) { 
+            nameFileJs = file.relative; 
+        })); 
+});  
+
+/* Apagar arquivos desnecessários */
+gulp.task('clean-files', function() {
+    return gulp.src([
+            projectNew + '/public/js/**/*.js',
+            projectNew + '/public/js/**/*.js.map',
+            '!' + projectNew + '/public/js/**/index-*.min.js',
+            projectNew + '/public/css/**/*.css',
+            projectNew + '/public/css/**/*.css.map',
+            '!' + projectNew + '/public/css/**/index-*.min.css'])
+        .pipe($.clean());
+});
+
+/* Revisão de arquivos */
+gulp.task('rev', function(){
+    return gulp.src([projectNew + '/public/**/*.{css,js,jpg,jpeg,png,svg}'])
+        .pipe($.rev())
+        .pipe($.revdel())
+        .pipe(gulp.dest(projectNew + '/public/'))
+        .pipe($.rev.manifest())
+        .pipe(gulp.dest(projectNew + '/public/'))
+})
+
+gulp.task('revreplace', ['rev'], function(){
+    return gulp.src([projectNew + '/**/*'])
+    .pipe($.revReplace({
+        manifest: gulp.src(projectNew + '/public/rev-manifest.json'),
+        replaceInExtensions: ['.blade.php', '.js', '.css']
+    }))
+    .pipe(gulp.dest(projectNew + '/'));
+});
+
+/* Alias */
+gulp.task('minify', ['imagemin', 'minify-js', 'minify-css', 'minify-html']);
+gulp.task('build', $.sequence('minify', /* 'revreplace',  */'useref', 'clean-files'));
+gulp.task('default', $.sequence('copy', 'build'));
